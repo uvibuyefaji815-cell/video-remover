@@ -1,11 +1,12 @@
 import streamlit as st
 import subprocess
 import os
+import imageio_ffmpeg as im_ffmpeg
 
 st.set_page_config(page_title="Video Copyright Remover", page_icon="🎬", layout="centered")
 
-st.title("🎬 Smart Video Copyright Remover, Preview Cutter & Watermark Adder")
-st.write("ভিডিও আপলোড করুন, প্লেয়ারে দেখে সময় নির্ধারণ করে কাটুন এবং আপনার নিজস্ব স্টাইলিশ ওয়াটারমার্ক বসান।")
+st.title("🎬 Smart Video Copyright Remover (Pre-Cutter & Watermark Pro)")
+st.write("ভিডিও আপলোড করুন, প্লেয়ারে দেখে সময় নির্ধারণ করে কাটুন এবং নিজস্ব স্টাইলিশ ওয়াটারমার্ক বসান।")
 
 uploaded_file = st.file_uploader("১. গ্যালারি থেকে মূল ভিডিও সিলেক্ট করুন (MP4)", type=["mp4"])
 
@@ -20,25 +21,23 @@ if uploaded_file is not None:
     st.success("✅ মূল ভিডিও আপলোড সফল হয়েছে!")
     st.markdown("---")
     
-    # --- নতুন ফিচার: ভিডিও প্রিভিউ দেখে কাটার সিস্টেম ---
+    # --- ভিডিও প্রিভিউ দেখে কাটার সিস্টেম ---
     st.markdown("### 📺 ভিডিওটি দেখে কাটার সময় (Seconds) নির্ধারণ করুন:")
     st.info("💡 নিচের ভিডিও প্লেয়ারটি চালু করুন এবং দেখে নিন কত সেকেন্ড থেকে কত সেকেন্ড পর্যন্ত আপনি রাখতে চান।")
     
-    # স্ক্রিনে ভিডিও প্লেয়ার শো করা
     with open(input_path, "rb") as video_file:
         video_bytes = video_file.read()
     st.video(video_bytes)
     
-    # ইউজার ভিডিও দেখে এখানে সেকেন্ড বসাবেন
     col1, col2 = st.columns(2)
     with col1:
-        trim_start = st.number_input("কত সেকেন্ড থেকে ভিডিও শুরু হবে? (Start Second)", min_value=0, value=0, step=1, help="ভিডিওর শুরুর যে অংশ বাদ দিতে চান, তার পরের সেকেন্ডটি এখানে লিখুন।")
+        trim_start = st.number_input("কত সেকেন্ড থেকে ভিডিও শুরু হবে? (Start Second)", min_value=0, value=0, step=1)
     with col2:
-        trim_end = st.number_input("কত সেকেন্ডে ভিডিও শেষ হবে? (End Second)", min_value=0, value=0, step=1, help="ভিডিওর যতটুকু রাখতে চান, প্লেয়ার দেখে সেই শেষ সেকেন্ডটি এখানে লিখুন। (পুরো ভিডিও রাখতে চাইলে ০ দিন)")
+        trim_end = st.number_input("কত সেকেন্ডে ভিডিও শেষ হবে? (End Second)", min_value=0, value=0, step=1, help="পুরো ভিডিও রাখতে চাইলে ০ দিন")
     
     st.markdown("---")
     
-    # --- ফিচার ২: ওয়াটারমার্ক সিস্টেম ---
+    # --- ওয়াটারমার্ক সিস্টেম ---
     st.markdown("### 🎯 আপনার ওয়াটারমার্ক বা লোগো সেট করুন:")
     watermark_type = st.radio("কীভাবে ওয়াটারমার্ক লাগাতে চান?", ["পেজের নাম লিখে (Text Watermark)", "লোগোর ছবি আপলোড করে (Image/Logo Watermark)", "কোনো ওয়াটারমার্ক ছাড়া (None)"])
     
@@ -54,7 +53,7 @@ if uploaded_file is not None:
                 "১. রেগুলার বোল্ড (Classic Bold)", 
                 "২. স্টাইলিশ বেঁকা-তেরা (Stylish Italic)", 
                 "৩. গথিক/মডার্ন টাইপ (Modern Monospace)",
-                "৪. গোল্ডেন শ্যাডো বক্স (Golden Elegant Box)",
+                "৪. গোল্ডেন শ্যাโด বক্স (Golden Elegant Box)",
                 "৫. সাইয়ান গ্লো এফেক্ট (Cyan Glow Style)"
             ]
         )
@@ -66,7 +65,7 @@ if uploaded_file is not None:
                 vf_filters += f",drawtext=text='{text_watermark}':x=w-tw-40:y=40:fontcolor=white:fontsize=28:font='Serif':italic=1:bold=1"
             elif text_style == "৩. গথিক/মডার্ন টাইপ (Modern Monospace)":
                 vf_filters += f",drawtext=text='{text_watermark}':x=w-tw-40:y=40:fontcolor=lightgray:fontsize=26:font='Monospace':bold=1"
-            elif text_style == "৪. গোল্ডেন শ্যাডো বক্স (Golden Elegant Box)":
+            elif text_style == "৪. গোল্ডেন শ্যাโด বক্স (Golden Elegant Box)":
                 vf_filters += f",drawtext=text='{text_watermark}':x=w-tw-40:y=40:fontcolor=yellow:fontsize=24:font='Serif':bold=1:italic=1:box=1:boxcolor=black@0.5:boxborderw=6"
             elif text_style == "৫. সাইয়ান গ্লো এফেক্ট (Cyan Glow Style)":
                 vf_filters += f",drawtext=text='{text_watermark}':x=w-tw-40:y=40:fontcolor=cyan:fontsize=26:font='Sans':bold=1:box=1:boxcolor=black@0.3:boxborderw=4"
@@ -90,20 +89,19 @@ if uploaded_file is not None:
                     if os.path.exists(output_path):
                         os.remove(output_path)
                     
-                    # FFmpeg কমান্ড তৈরি করা
-                    command = ['ffmpeg', '-y']
+                    # imageio-ffmpeg থেকে সরাসরি ফিক্সড পাথ নেওয়া
+                    ffmpeg_exe = im_ffmpeg.get_ffmpeg_exe()
                     
-                    # শুরুর সময় সেট করা (-ss)
+                    # FFmpeg কমান্ড তৈরি
+                    command = [ffmpeg_exe, '-y']
+                    
                     if trim_start > 0:
                         command += ['-ss', str(trim_start)]
-                    
-                    # শেষের সময় সেট করা (-to)
                     if trim_end > 0:
                         command += ['-to', str(trim_end)]
                         
                     command += ['-i', input_path]
                     
-                    # অডিও ও ভিডিও ফিল্টার সেটআপ
                     if watermark_type == "লোগোর ছবি আপলোড করে (Image/Logo Watermark)":
                         command += [
                             '-filter_complex', f"[0:v]{vf_filters};[0:a]asetrate=44100*1.04,atempo=1.02[a]",
@@ -121,11 +119,12 @@ if uploaded_file is not None:
                         '-c:a', 'aac', '-preset', 'veryfast', output_path
                     ]
                     
-                    # কমান্ড রান করা
-                    result = subprocess.run(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+                    # ব্যাকগ্রাউন্ডে রান করা
+                    subprocess.run(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
                     
+                    # ফাইনাল ফাইল তৈরি হয়েছে কিনা তা নিশ্চিত করা
                     if os.path.exists(output_path) and os.path.getsize(output_path) > 0:
-                        st.success("🎉 চমৎকার! আপনার ভিডিওটি দেখে নিখুঁতভাবে কাটা ও তৈরি করা হয়েছে।")
+                        st.success("🎉 চমৎকার! আপনার ভিডিওটি প্রপারলি এডিট করা হয়েছে।")
                         
                         with open(output_path, "rb") as file:
                             st.download_button(
@@ -135,13 +134,9 @@ if uploaded_file is not None:
                                 mime="video/mp4"
                             )
                     else:
-                        if os.path.exists(output_path):
-                            st.success("🎉 আপনার ভিডিওটি সফলভাবে রেডি হয়েছে!")
-                            with open(output_path, "rb") as file:
-                                st.download_button( label="⬇️ গ্যালারিতে সেভ করুন", data=file, file_name="processed_video.mp4", mime="video/mp4" )
-                        else:
-                            st.error(f"প্রসেস করা সম্ভব হয়নি। সার্ভার এরর।")
+                        st.error("❌ প্রসেসিং সম্পূর্ণ করা যায়নি। দয়া করে কাটিংয়ের সময় বা ভিডিও ফাইলটি চেক করুন।")
                     
+                    # কাজ শেষে ক্লিনআপ
                     if os.path.exists(input_path): os.remove(input_path)
                     if os.path.exists(logo_path): os.remove(logo_path)
                     
