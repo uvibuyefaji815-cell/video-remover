@@ -29,7 +29,7 @@ if uploaded_file is not None:
         video_bytes = video_file.read()
     st.video(video_bytes)
     
-    # মিনিট ও সেকেন্ড আলাদা করার সুন্দর ছক
+    # মিনিট ও সেকেন্ড আলাদা ইনপুট বক্স
     st.markdown("#### ⏳ ভিডিও শুরুর সময় (Start Time):")
     col1, col2 = st.columns(2)
     with col1:
@@ -40,11 +40,11 @@ if uploaded_file is not None:
     st.markdown("#### ⏳ ভিডিও শেষের সময় (End Time):")
     col3, col4 = st.columns(2)
     with col3:
-        end_min = st.number_input("শেষের মিনিট (Min)", min_value=0, value=0, step=1, help="পুরো ভিডিও রাখতে চাইলে এটি ০ রাখুন")
+        end_min = st.number_input("শেষের মিনিট (Min)", min_value=0, value=0, step=1)
     with col4:
-        end_sec = st.number_input("শেষের সেকেন্ড (Sec)", min_value=0, max_value=59, value=0, step=1, help="পুরো ভিডিও রাখতে চাইলে এটি ০ রাখুন")
+        end_sec = st.number_input("শেষের সেকেন্ড (Sec)", min_value=0, max_value=59, value=0, step=1)
     
-    # মোট সেকেন্ড হিসাব করা (FFmpeg এর জন্য)
+    # মোট সেকেন্ড হিসাব করা
     total_start_seconds = (start_min * 60) + start_sec
     total_end_seconds = (end_min * 60) + end_sec
     
@@ -103,17 +103,16 @@ if uploaded_file is not None:
                         os.remove(output_path)
                     
                     ffmpeg_exe = im_ffmpeg.get_ffmpeg_exe()
-                    command = [ffmpeg_exe, '-y']
                     
-                    # সুনির্দিষ্ট কাটিং ফিল্টার ইনপুট ট্রিক
+                    # নিখুঁত কাটিংয়ের জন্য সঠিক অর্ডারে কমান্ড তৈরি (-i এর পরে -ss ও -to)
+                    command = [ffmpeg_exe, '-y', '-i', input_path]
+                    
                     if total_start_seconds > 0:
                         command += ['-ss', str(total_start_seconds)]
                     if total_end_seconds > 0:
-                        # -to ব্যবহারের জন্য ইনপুট ফাইলের আগে বসালে ভালো কাজ করে
                         command += ['-to', str(total_end_seconds)]
-                        
-                    command += ['-i', input_path]
                     
+                    # ফিল্টার ও কপিরাইট রিমুভাল পার্ট
                     if watermark_type == "লোগোর ছবি আপলোড করে (Image/Logo Watermark)":
                         command += [
                             '-filter_complex', f"[0:v]{vf_filters};[0:a]asetrate=44100*1.04,atempo=1.02[a]",
@@ -131,8 +130,10 @@ if uploaded_file is not None:
                         '-c:a', 'aac', '-preset', 'veryfast', output_path
                     ]
                     
+                    # ব্যাকগ্রাউন্ডে রান করা
                     subprocess.run(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
                     
+                    # ফাইল চেক ও ডাউনলোড বাটন
                     if os.path.exists(output_path) and os.path.getsize(output_path) > 0:
                         st.success("🎉 চমৎকার! আপনার ভিডিওটি প্রপারলি এডিট করা হয়েছে।")
                         
@@ -146,6 +147,7 @@ if uploaded_file is not None:
                     else:
                         st.error("❌ প্রসেসিং সম্পূর্ণ করা যায়নি। দয়া করে কাটিংয়ের সময় বা ভিডিও ফাইলটি চেক করুন।")
                     
+                    # ক্লিনআপ
                     if os.path.exists(input_path): os.remove(input_path)
                     if os.path.exists(logo_path): os.remove(logo_path)
                     
