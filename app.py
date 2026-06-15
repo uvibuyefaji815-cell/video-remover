@@ -5,8 +5,8 @@ import imageio_ffmpeg as im_ffmpeg
 
 st.set_page_config(page_title="Video Copyright Remover", page_icon="🎬", layout="centered")
 
-st.title("🎬 Smart Video Copyright Remover (Pre-Cutter & Watermark Pro)")
-st.write("ভিডিও আপলোড করুন, প্লেয়ারে দেখে মিনিট ও সেকেন্ড বসিয়ে কাটুন এবং নিজস্ব স্টাইলিশ ওয়াটারমার্ক বসান।")
+st.title("🎬 Smart Video Copyright Remover (Mobile Slider Style)")
+st.write("ভিডিও আপলোড করুন, মোবাইলের মতো টেনে টাইম সিলেক্ট করে কাটুন এবং নিজস্ব স্টাইলিশ ওয়াটারমার্ক বসান।")
 
 uploaded_file = st.file_uploader("১. গ্যালারি থেকে মূল ভিডিও সিলেক্ট করুন (MP4)", type=["mp4"])
 
@@ -21,33 +21,30 @@ if uploaded_file is not None:
     st.success("✅ মূল ভিডিও আপলোড সফল হয়েছে!")
     st.markdown("---")
     
-    # --- ভিডিও প্রিভিউ দেখে কাটার সিস্টেম ---
-    st.markdown("### 📺 ভিডিওটি দেখে কাটার সময় নির্ধারণ করুন:")
-    st.info("💡 নিচের ভিডিও প্লেয়ারটি চালু করুন এবং দেখে নিন কত মিনিট কত সেকেন্ড থেকে কত মিনিট কত সেকেন্ড পর্যন্ত আপনি রাখতে চান।")
+    # --- ভিডিও প্রিভিউ এবং মোবাইল স্টাইল স্লাইডার কাটিং ---
+    st.markdown("### 📺 ভিডিওটি দেখে কাটার অংশ সিলেক্ট করুন:")
+    st.info("💡 নিচের ভিডিও প্লেয়ারে দেখে নিন কত সেকেন্ড থেকে কত সেকেন্ড কাটবেন। তারপর স্লাইডারটি টেনে সেট করুন।")
     
     with open(input_path, "rb") as video_file:
         video_bytes = video_file.read()
     st.video(video_bytes)
     
-    # মিনিট ও সেকেন্ড আলাদা ইনপুট বক্স
-    st.markdown("#### ⏳ ভিডিও শুরুর সময় (Start Time):")
-    col1, col2 = st.columns(2)
-    with col1:
-        start_min = st.number_input("শুরুর মিনিট (Min)", min_value=0, value=0, step=1, key="s_min")
-    with col2:
-        start_sec = st.number_input("শুরুর সেকেন্ড (Sec)", min_value=0, max_value=59, value=0, step=1, key="s_sec")
-        
-    st.markdown("#### ⏳ ভিডিও শেষের সময় (End Time):")
-    col3, col4 = st.columns(2)
-    with col3:
-        end_min = st.number_input("শেষের মিনিট (Min)", min_value=0, value=0, step=1, key="e_min")
-    with col4:
-        end_sec = st.number_input("শেষের সেকেন্ড (Sec)", min_value=0, max_value=59, value=0, step=1, key="e_sec")
+    # ভিডিওর আনুমানিক সর্বোচ্চ দৈর্ঘ্য (সেকেন্ডে) - ডিফল্ট ৩০০ সেকেন্ড বা ৫ মিনিট রাখা হয়েছে
+    # এটি ইউজারকে মোবাইলের মতো দুই পাশ থেকে টেনে কাটার সুবিধা দেবে
+    st.markdown("#### ⏳ ভিডিওর টাইমলাইন স্লাইডার (টেনে ছোট-বড় করুন):")
+    time_range = st.slider(
+        "ভিডিওর শুরুর এবং শেষের সেকেন্ড সিলেক্ট করুন:",
+        min_value=0, 
+        max_value=300, # সর্বোচ্চ ৩০০ সেকেন্ড (৫ মিনিট) পর্যন্ত স্লাইড করা যাবে 
+        value=(0, 20), # ডিফল্টভাবে ০ থেকে ২০ সেকেন্ড সেট করা থাকবে
+        step=1,
+        help="বাম পাশের গোল বাটনটি টেনে শুরুর সময় এবং ডান পাশের বাটনটি টেনে শেষের সময় সেট করুন।"
+    )
     
-    # মোট সেকেন্ড হিসাব করা
-    total_start_seconds = (start_min * 60) + start_sec
-    total_end_seconds = (end_min * 60) + end_sec
+    total_start_seconds = time_range[0]
+    total_end_seconds = time_range[1]
     
+    st.write(f"🎯 **আপনার সিলেক্ট করা সময়:** {total_start_seconds} সেকেন্ড থেকে {total_end_seconds} সেকেন্ড পর্যন্ত কাটা হবে।")
     st.markdown("---")
     
     # --- ওয়াটারমার্ক সিস্টেম ---
@@ -104,10 +101,9 @@ if uploaded_file is not None:
                     
                     ffmpeg_exe = im_ffmpeg.get_ffmpeg_exe()
                     
-                    # স্ট্যাবল কমান্ড তৈরি করার লজিক
+                    # স্ট্যাবল কাটিং লজিক: ইনপুট ফাইলের আগেই -ss এবং -to ব্যবহার করে নিখুঁত ট্রিম
                     command = [ffmpeg_exe, '-y']
                     
-                    # টাইমিং ইনপুট সঠিকভাবে পাস করার নিরাপদ ট্রিক
                     if total_start_seconds > 0:
                         command += ['-ss', str(total_start_seconds)]
                     if total_end_seconds > 0:
@@ -148,7 +144,7 @@ if uploaded_file is not None:
                                 mime="video/mp4"
                             )
                     else:
-                        st.error("❌ প্রসেস করা যায়নি। দয়া করে কাটিংয়ের সময় অথবা ভিডিওর টাইমলাইনটি আরেকবার চেক করুন।")
+                        st.error("❌ প্রসেস করা যায়নি। দয়া করে কাটিংয়ের স্লাইডার বা টাইমলাইনটি আরেকবার চেক করুন।")
                     
                     # ক্লিনআপ ফাইল
                     if os.path.exists(input_path): os.remove(input_path)
