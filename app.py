@@ -6,7 +6,7 @@ import imageio_ffmpeg as im_ffmpeg
 st.set_page_config(page_title="Video Copyright Remover", page_icon="🎬", layout="centered")
 
 st.title("🎬 Smart Video Copyright Remover (Pre-Cutter & Watermark Pro)")
-st.write("ভিডিও আপলোড করুন, প্লেয়ারে দেখে সময় নির্ধারণ করে কাটুন এবং নিজস্ব স্টাইলিশ ওয়াটারমার্ক বসান।")
+st.write("ভিডিও আপলোড করুন, প্লেয়ারে দেখে মিনিট ও সেকেন্ড বসিয়ে কাটুন এবং নিজস্ব স্টাইলিশ ওয়াটারমার্ক বসান।")
 
 uploaded_file = st.file_uploader("১. গ্যালারি থেকে মূল ভিডিও সিলেক্ট করুন (MP4)", type=["mp4"])
 
@@ -22,18 +22,31 @@ if uploaded_file is not None:
     st.markdown("---")
     
     # --- ভিডিও প্রিভিউ দেখে কাটার সিস্টেম ---
-    st.markdown("### 📺 ভিডিওটি দেখে কাটার সময় (Seconds) নির্ধারণ করুন:")
-    st.info("💡 নিচের ভিডিও প্লেয়ারটি চালু করুন এবং দেখে নিন কত সেকেন্ড থেকে কত সেকেন্ড পর্যন্ত আপনি রাখতে চান।")
+    st.markdown("### 📺 ভিডিওটি দেখে কাটার সময় নির্ধারণ করুন:")
+    st.info("💡 নিচের ভিডিও প্লেয়ারটি চালু করুন এবং দেখে নিন কত মিনিট কত সেকেন্ড থেকে কত মিনিট কত সেকেন্ড পর্যন্ত আপনি রাখতে চান।")
     
     with open(input_path, "rb") as video_file:
         video_bytes = video_file.read()
     st.video(video_bytes)
     
+    # মিনিট ও সেকেন্ড আলাদা করার সুন্দর ছক
+    st.markdown("#### ⏳ ভিডিও শুরুর সময় (Start Time):")
     col1, col2 = st.columns(2)
     with col1:
-        trim_start = st.number_input("কত সেকেন্ড থেকে ভিডিও শুরু হবে? (Start Second)", min_value=0, value=0, step=1)
+        start_min = st.number_input("শুরুর মিনিট (Min)", min_value=0, value=0, step=1)
     with col2:
-        trim_end = st.number_input("কত সেকেন্ডে ভিডিও শেষ হবে? (End Second)", min_value=0, value=0, step=1, help="পুরো ভিডিও রাখতে চাইলে ০ দিন")
+        start_sec = st.number_input("শুরুর সেকেন্ড (Sec)", min_value=0, max_value=59, value=0, step=1)
+        
+    st.markdown("#### ⏳ ভিডিও শেষের সময় (End Time):")
+    col3, col4 = st.columns(2)
+    with col3:
+        end_min = st.number_input("শেষের মিনিট (Min)", min_value=0, value=0, step=1, help="পুরো ভিডিও রাখতে চাইলে এটি ০ রাখুন")
+    with col4:
+        end_sec = st.number_input("শেষের সেকেন্ড (Sec)", min_value=0, max_value=59, value=0, step=1, help="পুরো ভিডিও রাখতে চাইলে এটি ০ রাখুন")
+    
+    # মোট সেকেন্ড হিসাব করা (FFmpeg এর জন্য)
+    total_start_seconds = (start_min * 60) + start_sec
+    total_end_seconds = (end_min * 60) + end_sec
     
     st.markdown("---")
     
@@ -53,7 +66,7 @@ if uploaded_file is not None:
                 "১. রেগুলার বোল্ড (Classic Bold)", 
                 "২. স্টাইলিশ বেঁকা-তেরা (Stylish Italic)", 
                 "৩. গথিক/মডার্ন টাইপ (Modern Monospace)",
-                "৪. গোল্ডেন শ্যাโด বক্স (Golden Elegant Box)",
+                "৪. গোল্ডেন শ্যাডো বক্স (Golden Elegant Box)",
                 "৫. সাইয়ান গ্লো এফেক্ট (Cyan Glow Style)"
             ]
         )
@@ -65,7 +78,7 @@ if uploaded_file is not None:
                 vf_filters += f",drawtext=text='{text_watermark}':x=w-tw-40:y=40:fontcolor=white:fontsize=28:font='Serif':italic=1:bold=1"
             elif text_style == "৩. গথিক/মডার্ন টাইপ (Modern Monospace)":
                 vf_filters += f",drawtext=text='{text_watermark}':x=w-tw-40:y=40:fontcolor=lightgray:fontsize=26:font='Monospace':bold=1"
-            elif text_style == "৪. গোল্ডেন শ্যাโด বক্স (Golden Elegant Box)":
+            elif text_style == "৪. গোল্ডেন শ্যাডো বক্স (Golden Elegant Box)":
                 vf_filters += f",drawtext=text='{text_watermark}':x=w-tw-40:y=40:fontcolor=yellow:fontsize=24:font='Serif':bold=1:italic=1:box=1:boxcolor=black@0.5:boxborderw=6"
             elif text_style == "৫. সাইয়ান গ্লো এফেক্ট (Cyan Glow Style)":
                 vf_filters += f",drawtext=text='{text_watermark}':x=w-tw-40:y=40:fontcolor=cyan:fontsize=26:font='Sans':bold=1:box=1:boxcolor=black@0.3:boxborderw=4"
@@ -89,16 +102,15 @@ if uploaded_file is not None:
                     if os.path.exists(output_path):
                         os.remove(output_path)
                     
-                    # imageio-ffmpeg থেকে সরাসরি ফিক্সড পাথ নেওয়া
                     ffmpeg_exe = im_ffmpeg.get_ffmpeg_exe()
-                    
-                    # FFmpeg কমান্ড তৈরি
                     command = [ffmpeg_exe, '-y']
                     
-                    if trim_start > 0:
-                        command += ['-ss', str(trim_start)]
-                    if trim_end > 0:
-                        command += ['-to', str(trim_end)]
+                    # সুনির্দিষ্ট কাটিং ফিল্টার ইনপুট ট্রিক
+                    if total_start_seconds > 0:
+                        command += ['-ss', str(total_start_seconds)]
+                    if total_end_seconds > 0:
+                        # -to ব্যবহারের জন্য ইনপুট ফাইলের আগে বসালে ভালো কাজ করে
+                        command += ['-to', str(total_end_seconds)]
                         
                     command += ['-i', input_path]
                     
@@ -119,10 +131,8 @@ if uploaded_file is not None:
                         '-c:a', 'aac', '-preset', 'veryfast', output_path
                     ]
                     
-                    # ব্যাকগ্রাউন্ডে রান করা
                     subprocess.run(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
                     
-                    # ফাইনাল ফাইল তৈরি হয়েছে কিনা তা নিশ্চিত করা
                     if os.path.exists(output_path) and os.path.getsize(output_path) > 0:
                         st.success("🎉 চমৎকার! আপনার ভিডিওটি প্রপারলি এডিট করা হয়েছে।")
                         
@@ -136,7 +146,6 @@ if uploaded_file is not None:
                     else:
                         st.error("❌ প্রসেসিং সম্পূর্ণ করা যায়নি। দয়া করে কাটিংয়ের সময় বা ভিডিও ফাইলটি চেক করুন।")
                     
-                    # কাজ শেষে ক্লিনআপ
                     if os.path.exists(input_path): os.remove(input_path)
                     if os.path.exists(logo_path): os.remove(logo_path)
                     
