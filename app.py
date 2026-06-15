@@ -5,8 +5,8 @@ import imageio_ffmpeg as im_ffmpeg
 
 st.set_page_config(page_title="Video Copyright Remover", page_icon="🎬", layout="centered")
 
-st.title("🎬 Smart Video Copyright Remover (Mobile Slider Style)")
-st.write("ভিডিও আপলোড করুন, মোবাইলের মতো টেনে টাইম সিলেক্ট করে কাটুন এবং নিজস্ব স্টাইলিশ ওয়াটারমার্ক বসান।")
+st.title("🎬 Smart Video Copyright Remover (Easy Time Chooser)")
+st.write("ভিডিও আপলোড করুন, প্লেয়ার দেখে সরাসরি মিনিট ও সেকেন্ড টেনে সেট করে কেটে ফেলুন।")
 
 uploaded_file = st.file_uploader("১. গ্যালারি থেকে মূল ভিডিও সিলেক্ট করুন (MP4)", type=["mp4"])
 
@@ -21,37 +21,36 @@ if uploaded_file is not None:
     st.success("✅ মূল ভিডিও আপলোড সফল হয়েছে!")
     st.markdown("---")
     
-    # --- ভিডিও প্রিভিউ এবং মোবাইল স্টাইল স্লাইডার কাটিং ---
-    st.markdown("### 📺 ভিডিওটি দেখে কাটার অংশ সিলেক্ট করুন:")
-    st.info("💡 নিচের ভিডিও প্লেয়ারে দেখে নিন কত সেকেন্ড থেকে কত সেকেন্ড কাটবেন। তারপর স্লাইডারটি টেনে সেট করুন।")
-    
+    # --- ভিডিও প্লেয়ার ---
+    st.markdown("### 📺 ভিডিও প্রিভিউ:")
     with open(input_path, "rb") as video_file:
         video_bytes = video_file.read()
     st.video(video_bytes)
     
-    # ভিডিওর আনুমানিক সর্বোচ্চ দৈর্ঘ্য (সেকেন্ডে) - ডিফল্ট ৩০০ সেকেন্ড বা ৫ মিনিট রাখা হয়েছে
-    # এটি ইউজারকে মোবাইলের মতো দুই পাশ থেকে টেনে কাটার সুবিধা দেবে
-    st.markdown("#### ⏳ ভিডিওর টাইমলাইন স্লাইডার (টেনে ছোট-বড় করুন):")
-    time_range = st.slider(
-        "ভিডিওর শুরুর এবং শেষের সেকেন্ড সিলেক্ট করুন:",
-        min_value=0, 
-        max_value=300, # সর্বোচ্চ ৩০০ সেকেন্ড (৫ মিনিট) পর্যন্ত স্লাইড করা যাবে 
-        value=(0, 20), # ডিফল্টভাবে ০ থেকে ২০ সেকেন্ড সেট করা থাকবে
-        step=1,
-        help="বাম পাশের গোল বাটনটি টেনে শুরুর সময় এবং ডান পাশের বাটনটি টেনে শেষের সময় সেট করুন।"
-    )
+    # --- মিনিট-সেকেন্ড কাটিং স্লাইডার ---
+    st.markdown("### ⏳ ভিডিও কাটার সময় নির্ধারণ করুন (সরাসরি মিনিট ও সেকেন্ড টেনে সেট করুন):")
     
-    total_start_seconds = time_range[0]
-    total_end_seconds = time_range[1]
+    st.markdown("#### 🟢 ভিডিওর শুরুর সময় (Start Time):")
+    start_min = st.slider("শুরুর মিনিট (Minute)", min_value=0, max_value=60, value=0, step=1, key="s_m")
+    start_sec = st.slider("শুরুর সেকেন্ড (Second)", min_value=0, max_value=59, value=0, step=1, key="s_s")
     
-    st.write(f"🎯 **আপনার সিলেক্ট করা সময়:** {total_start_seconds} সেকেন্ড থেকে {total_end_seconds} সেকেন্ড পর্যন্ত কাটা হবে।")
+    st.markdown("#### 🔴 ভিডিওর শেষের সময় (End Time):")
+    end_min = st.slider("শেষের মিনিট (Minute)", min_value=0, max_value=60, value=0, step=1, key="e_m")
+    end_sec = st.slider("শেষের সেকেন্ড (Second)", min_value=0, max_value=59, value=0, step=1, key="e_s")
+    
+    # ব্যাকগ্রাউন্ডে FFmpeg এর জন্য সেকেন্ড হিসাব করা
+    total_start_seconds = (start_min * 60) + start_sec
+    total_end_seconds = (end_min * 60) + end_sec
+    
+    # --- স্ক্রিনে মিনিট ও সেকেন্ডে সময় দেখানোর অংশ ---
+    st.markdown("⚙️ **আপনার সিলেক্ট করা সময়:**")
+    st.info(f"🎬 ভিডিওটি **{start_min} মিনিট {start_sec} সেকেন্ড** থেকে শুরু হয়ে **{end_min} মিনিট {end_sec} সেকেন্ড** পর্যন্ত কেটে রাখা হবে।")
     st.markdown("---")
     
     # --- ওয়াটারমার্ক সিস্টেম ---
     st.markdown("### 🎯 আপনার ওয়াটারমার্ক বা লোগো সেট করুন:")
     watermark_type = st.radio("কীভাবে ওয়াটারমার্ক লাগাতে চান?", ["পেজের নাম লিখে (Text Watermark)", "লোগোর ছবি আপলোড করে (Image/Logo Watermark)", "কোনো ওয়াটারমার্ক ছাড়া (None)"])
     
-    # বেসিক কপিরাইট রিমুভাল ফিল্টার (ক্রপ ও ব্রাইটনেস)
     vf_filters = "crop=in_w-40:in_h-40:20:20,eq=brightness=0.05:contrast=1.04"
     logo_uploaded = False
     
@@ -94,14 +93,12 @@ if uploaded_file is not None:
         if watermark_type == "লোগোর ছবি আপলোড করে (Image/Logo Watermark)" and not logo_uploaded:
             st.error("❌ দয়া করে আপনার লোগোর ছবিটি আপলোড করুন!")
         else:
-            with st.spinner("ভিডিও কাটিং এবং প্রসেসিংয়ের কাজ ব্যাকগ্রাউন্ডে চলছে... একটু অপেক্ষা করুন"):
+            with st.spinner("ভিডিও প্রসেসিং এবং কাটিংয়ের কাজ চলছে... একটু অপেক্ষা করুন"):
                 try:
                     if os.path.exists(output_path):
                         os.remove(output_path)
                     
                     ffmpeg_exe = im_ffmpeg.get_ffmpeg_exe()
-                    
-                    # স্ট্যাবল কাটিং লজিক: ইনপুট ফাইলের আগেই -ss এবং -to ব্যবহার করে নিখুঁত ট্রিম
                     command = [ffmpeg_exe, '-y']
                     
                     if total_start_seconds > 0:
@@ -111,7 +108,6 @@ if uploaded_file is not None:
                         
                     command += ['-i', input_path]
                     
-                    # ফিল্টার চেইন অ্যাড করা
                     if watermark_type == "লোগোর ছবি আপলোড করে (Image/Logo Watermark)":
                         command += [
                             '-filter_complex', f"[0:v]{vf_filters};[0:a]asetrate=44100*1.04,atempo=1.02[a]",
@@ -129,10 +125,8 @@ if uploaded_file is not None:
                         '-c:a', 'aac', '-preset', 'veryfast', output_path
                     ]
                     
-                    # সাবপ্রসেস রান করা
                     subprocess.run(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
                     
-                    # এডিটেড ভিডিও আউটপুট চেক
                     if os.path.exists(output_path) and os.path.getsize(output_path) > 0:
                         st.success("🎉 চমৎকার! আপনার ভিডিওটি প্রপারলি এডিট করা হয়েছে।")
                         
@@ -144,9 +138,8 @@ if uploaded_file is not None:
                                 mime="video/mp4"
                             )
                     else:
-                        st.error("❌ প্রসেস করা যায়নি। দয়া করে কাটিংয়ের স্লাইডার বা টাইমলাইনটি আরেকবার চেক করুন।")
+                        st.error("❌ প্রসেস করা যায়নি। আপনার সিলেক্ট করা সময় বা ভিডিও ফাইলটি আরেকবার চেক করুন।")
                     
-                    # ক্লিনআপ ফাইল
                     if os.path.exists(input_path): os.remove(input_path)
                     if os.path.exists(logo_path): os.remove(logo_path)
                     
