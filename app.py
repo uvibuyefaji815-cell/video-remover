@@ -1,12 +1,11 @@
 import streamlit as st
+import subprocess
 import os
-from moviepy.editor import VideoFileClip
-import moviepy.video.fx.all as vfx
 
 st.set_page_config(page_title="Video Copyright Remover", page_icon="🎬", layout="centered")
 
 st.title("🎬 Smart Video Copyright Remover (With Audio)")
-st.write("আপনার ভিডিওটি আপলোড করুন। এটি অটোমেটিক ক্রপ, ফিল্টার এবং অডিওসহ সাইজ অপটিমাইজ করে সরাসরি গ্যালারিতে ডাউনলোডের অপশন দেবে।")
+st.write("আপনার ভিডিওটি আপলোড করুন। এটি অটোমেটিক ক্রপ, ফিল্টার এবং অডিওসহ সাইজ ছোট করে সরাসরি গ্যালারিতে ডাউনলোডের অপশন দেবে।")
 
 uploaded_file = st.file_uploader("গ্যালারি থেকে ভিডিও সিলেক্ট করুন (MP4)", type=["mp4"])
 
@@ -22,44 +21,39 @@ if uploaded_file is not None:
     if st.button("🚀 Remove Copyright & Keep Audio"):
         with st.spinner("মিউজিকসহ ব্যাকগ্রাউন্ডে প্রসেসিং চলছে... একটু অপেক্ষা করুন"):
             try:
-                # ভিডিও ও অডিও একসাথে লোড করা
-                clip = VideoFileClip(input_path)
+                # পুরোনো ফাইল থাকলে ডিলিট করা
+                if os.path.exists(output_path):
+                    os.remove(output_path)
                 
-                # ১. চারপাশ থেকে ১৫ পিক্সেল ক্রপ (লোগো ও বর্ডার কাটার জন্য)
-                w, h = clip.size
-                cropped_clip = clip.crop(x1=15, y1=15, x2=w-15, y2=h-15)
+                # FFmpeg কমান্ড: চারপাশ থেকে ক্রপ, ব্রাইটনেস ফিল্টার এবং অডিওর স্পিড/পিচ ১.০৩ গুণ করা
+                # একই সাথে বিটরেট কমিয়ে এমবি সাইজ ছোট করা
+                command = [
+                    'ffmpeg', '-i', input_path,
+                    '-vf', 'crop=in_w-30:in_h-30:15:15,eq=brightness=0.04',
+                    '-filter_complex', '[0:a]atempo=1.03[a]',
+                    '-map', '0:v', '-map', '[a]',
+                    '-c:v', 'libx264', '-b:v', '1200k',
+                    '-c:a', 'aac', '-preset', 'veryfast', output_path
+                ]
                 
-                # ২. কালার ফিল্টার (ব্রাইটনেস ৪% বাড়ানো)
-                filtered_clip = cropped_clip.fx(vfx.colorx, 1.04)
+                # কমান্ড রান করা
+                result = subprocess.run(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
                 
-                # ৩. অডিও পিচ ও স্পিড সামান্য পরিবর্তন (১.০২ গুণ) যাতে মিউজিকের কপিরাইট কেটে যায়
-                final_clip = filtered_clip.fx(vfx.speedx, 1.02)
-                
-                # ৪. অডিওসহ কোয়ালিটি ঠিক রেখে এমবি সাইজ কমানো
-                final_clip.write_videofile(
-                    output_path, 
-                    codec="libx264", 
-                    audio_codec="aac", # অডিও/মিউজিক সচল রাখার জন্য
-                    bitrate="1200k", 
-                    preset="medium",
-                    logger=None
-                )
-                
-                clip.close()
-                final_clip.close()
-                
-                st.success("🎉 আপনার ভিডিওর মিউজিকসহ কপিরাইট সফলভাবে রিমুভ করা হয়েছে!")
-                
-                with open(output_path, "rb") as file:
-                    st.download_button(
-                        label="⬇️ গ্যালারিতে সেভ করুন (Download)",
-                        data=file,
-                        file_name="copyright_free_video.mp4",
-                        mime="video/mp4"
-                    )
+                if os.path.exists(output_path) and os.path.getsize(output_path) > 0:
+                    st.success("🎉 আপনার ভিডিওর মিউজিকসহ কপিরাইট সফলভাবে রিমুভ করা হয়েছে!")
                     
+                    with open(output_path, "rb") as file:
+                        st.download_button(
+                            label="⬇️ গ্যালারিতে সেভ করুন (Download)",
+                            data=file,
+                            file_name="copyright_free_video.mp4",
+                            mime="video/mp4"
+                        )
+                else:
+                    st.error(f"প্রসেসিং ব্যর্থ হয়েছে। সার্ভার এরর: {result.stderr}")
+                    
+                # টেম্পোরারি ফাইল রিমুভ করা
                 if os.path.exists(input_path): os.remove(input_path)
-                if os.path.exists(output_path): os.remove(output_path)
-                    
+                
             except Exception as e:
-                st.error(f"দুঃখিত, প্রসেস করার সময় একটি ইন্টারনাল এরর হয়েছে: {str(e)}")
+                st.error(f"দুঃখিত, একটি ইন্টারনাল এরর হয়েছে: {str(e)}")
