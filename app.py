@@ -74,30 +74,9 @@ if uploaded_file is not None:
     st.markdown("### 🎯 আপনার ওয়াটারমার্ক বা লোগো সেট করুন:")
     watermark_type = st.radio("কীভাবে ওয়াটারমার্ক লাগাতে চান?", ["পেজের নাম লিখে (Text Watermark)", "কোনো ওয়াটারমার্ক ছাড়া (None)"])
     
-    # হাই-কোয়ালিটি কপিরাইট রিমুভার ফিল্টার (ক্রপ ও কালার অ্যাডজাস্টমেন্ট)
-    base_vf = "crop=in_w-10:in_h-10:5:5,eq=brightness=0.03:contrast=1.03"
-    
+    text_watermark = "CineVideo BD"
     if watermark_type == "পেজের নাম লিখে (Text Watermark)":
         text_watermark = st.text_input("আপনার পেজ বা চ্যানেলের নাম লিখুন (ইংরেজিতে):", "CineVideo BD")
-        text_style = st.selectbox(
-            "টেক্সটের ডিজাইন বা স্টাইল সিলেক্ট করুন:",
-            [
-                "১. রেগুলার বোল্ড (Classic Bold)", 
-                "২. গোল্ডেন শ্যাโด বক্স (Golden Elegant Box)"
-            ],
-            index=1
-        )
-        
-        if text_watermark:
-            if text_style == "১. রেগুলার বোল্ড (Classic Bold)":
-                text_filter = f"drawtext=text='{text_watermark}':x=w-tw-40:y=h-th-40:fontcolor=white:fontsize=24:bold=1:box=1:boxcolor=black@0.4"
-            elif text_style == "২. গোল্ডেন শ্যাโด বক্স (Golden Elegant Box)":
-                text_filter = f"drawtext=text='{text_watermark}':x=w-tw-40:y=h-th-40:fontcolor=yellow:fontsize=24:bold=1:box=1:boxcolor=black@0.5:boxborderw=4"
-            
-            # কোনো ইনপুট ট্যাগ ছাড়া ফিল্টার চেইন জোড়া দেওয়া
-            vf_final = f"{base_vf},{text_filter}"
-    else:
-        vf_final = base_vf
 
     st.markdown("---")
     
@@ -112,20 +91,28 @@ if uploaded_file is not None:
                     
                     ffmpeg_exe = im_ffmpeg.get_ffmpeg_exe()
                     
-                    # অডিও স্পিড ফিল্টার
-                    af_final = "asetrate=44100*1.03,atempo=1.02"
+                    # এরর এড়াতে ফিল্টার চেইনকে একদম সহজ ও ব্র্যাকিং মুক্ত করা হয়েছে
+                    if watermark_type == "পেজের নাম লিখে (Text Watermark)":
+                        vf_filter = f"crop=iw-10:ih-10:5:5,eq=brightness=0.03:contrast=1.03,drawtext=text='{text_watermark}':x=w-tw-40:y=h-th-40:fontcolor=yellow:fontsize=24:bold=1:box=1:boxcolor=black@0.5"
+                    else:
+                        vf_filter = "crop=iw-10:ih-10:5:5,eq=brightness=0.03:contrast=1.03"
                     
-                    # একদম সরল ও নিখুঁত FFmpeg কমান্ড মেথড
+                    # অডিওর স্পিড সামান্য পরিবর্তন করার ফিল্টার
+                    af_filter = "asetrate=44100*1.03,atempo=1.02"
+                    
+                    # কোনো জটিল ম্যাপিং ছাড়া সর্বকালের সবচেয়ে নিরাপদ এবং স্ট্যান্ডার্ড FFmpeg কম্যান্ড
                     command = [
                         ffmpeg_exe, '-y',
                         '-ss', f"{total_start_seconds:.2f}",
                         '-to', f"{total_end_seconds:.2f}",
                         '-i', input_path,
-                        '-vf', vf_final,
-                        '-af', af_final,
-                        '-c:v', 'libx264', '-b:v', '1200k',
-                        '-c:a', 'aac', '-b:a', '128k',
-                        '-preset', 'veryfast', output_path
+                        '-vf', vf_filter,
+                        '-af', af_filter,
+                        '-c:v', 'libx264',
+                        '-preset', 'veryfast',
+                        '-crf', '22',
+                        '-c:a', 'aac',
+                        output_path
                     ]
                     
                     result = subprocess.run(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
@@ -141,7 +128,7 @@ if uploaded_file is not None:
                                 mime="video/mp4"
                             )
                     else:
-                        st.error("❌ প্রসেসিং সম্পূর্ণ করা যায়নি। দয়া করে কাটিংয়ের সময় বা ভিডিও ফাইলটি চেক করুন।")
+                        st.error("❌ প্রসেসিং সম্পূর্ণ করা যায়নি। নিচে এরর ডিটেইলস দেওয়া হলো:")
                         st.code(result.stderr)
                     
                     if os.path.exists(input_path): os.remove(input_path)
