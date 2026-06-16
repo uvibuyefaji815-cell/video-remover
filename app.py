@@ -20,7 +20,6 @@ def get_mp4_duration(file_stream):
         
         mvhd_idx = data.find(b'mvhd')
         if mvhd_idx != -1:
-            # timescale এবং duration এর পজিশন আনপ্যাক করা
             version = data[mvhd_idx + 4]
             if version == 0:
                 timescale, duration = struct.unpack('>II', data[mvhd_idx + 16:mvhd_idx + 24])
@@ -54,7 +53,6 @@ if uploaded_file is not None:
 
     st.markdown("---")
     st.markdown(f"### ✂️ ভিডিও কাটার টাইমলাইন (ভিডিওর আসল সাইজ: `{video_duration}` সেকেন্ড)")
-    st.info("💡 নিচের স্লাইডারের বাটন দুটি টেনে আপনার ইচ্ছামতো সেকেন্ড সিলেক্ট করুন।")
     
     # ভিডিওর আসল দৈর্ঘ্য অনুযায়ী অটোমেটিক স্লাইডার রেঞ্জ লক হবে
     time_range = st.slider(
@@ -74,18 +72,18 @@ if uploaded_file is not None:
     
     # --- ওয়াটারমার্ক সিস্টেম ---
     st.markdown("### 🎯 আপনার ওয়াটারমার্ক বা লোগো সেট করুন:")
-    watermark_type = st.radio("কীভাবে ওয়াটারমার্ক লাগাতে চান?", ["ペজের নাম লিখে (Text Watermark)", "কোনো ওয়াটারমার্ক ছাড়া (None)"])
+    watermark_type = st.radio("কীভাবে ওয়াটারমার্ক লাগাতে চান?", ["পেজের নাম লিখে (Text Watermark)", "কোনো ওয়াটারমার্ক ছাড়া (None)"])
     
-    # হাই-কোয়ালিটি কপিরাইট রিমুভার ফিল্টার
-    base_vf = "crop=in_w-10:in_h-10:5:5,eq=brightness=0.02:contrast=1.02"
+    # হাই-কোয়ালিটি কপিরাইট রিমুভার ফিল্টার (ক্রপ ও কালার অ্যাডজাস্টমেন্ট)
+    base_vf = "crop=in_w-10:in_h-10:5:5,eq=brightness=0.03:contrast=1.03"
     
-    if watermark_type == "ペজের নাম লিখে (Text Watermark)":
+    if watermark_type == "পেজের নাম লিখে (Text Watermark)":
         text_watermark = st.text_input("আপনার পেজ বা চ্যানেলের নাম লিখুন (ইংরেজিতে):", "CineVideo BD")
         text_style = st.selectbox(
             "টেক্সটের ডিজাইন বা স্টাইল সিলেক্ট করুন:",
             [
                 "১. রেগুলার বোল্ড (Classic Bold)", 
-                "২. গোল্ডেন শ্যাডো বক্স (Golden Elegant Box)"
+                "২. গোল্ডেন শ্যাโด বক্স (Golden Elegant Box)"
             ],
             index=1
         )
@@ -93,9 +91,10 @@ if uploaded_file is not None:
         if text_watermark:
             if text_style == "১. রেগুলার বোল্ড (Classic Bold)":
                 text_filter = f"drawtext=text='{text_watermark}':x=w-tw-40:y=h-th-40:fontcolor=white:fontsize=24:bold=1:box=1:boxcolor=black@0.4"
-            elif text_style == "২. গোল্ডেন শ্যাডো বক্স (Golden Elegant Box)":
+            elif text_style == "২. গোল্ডেন শ্যাโด বক্স (Golden Elegant Box)":
                 text_filter = f"drawtext=text='{text_watermark}':x=w-tw-40:y=h-th-40:fontcolor=yellow:fontsize=24:bold=1:box=1:boxcolor=black@0.5:boxborderw=4"
             
+            # কোনো ইনপুট ট্যাগ ছাড়া ফিল্টার চেইন জোড়া দেওয়া
             vf_final = f"{base_vf},{text_filter}"
     else:
         vf_final = base_vf
@@ -113,14 +112,17 @@ if uploaded_file is not None:
                     
                     ffmpeg_exe = im_ffmpeg.get_ffmpeg_exe()
                     
-                    # সুনির্দিষ্ট সেকেন্ড ধরে কাটার নিখুঁত কমান্ড
+                    # অডিও স্পিড ফিল্টার
+                    af_final = "asetrate=44100*1.03,atempo=1.02"
+                    
+                    # একদম সরল ও নিখুঁত FFmpeg কমান্ড মেথড
                     command = [
                         ffmpeg_exe, '-y',
                         '-ss', f"{total_start_seconds:.2f}",
                         '-to', f"{total_end_seconds:.2f}",
                         '-i', input_path,
-                        '-filter_complex', f"[0:v]{vf_final}[v_out];[0:a]asetrate=44100*1.03,atempo=1.02[a_out]",
-                        '-map', '[v_out]', '-map', '[a_out]',
+                        '-vf', vf_final,
+                        '-af', af_final,
                         '-c:v', 'libx264', '-b:v', '1200k',
                         '-c:a', 'aac', '-b:a', '128k',
                         '-preset', 'veryfast', output_path
