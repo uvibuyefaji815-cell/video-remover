@@ -2,11 +2,12 @@ import streamlit as st
 import subprocess
 import os
 import imageio_ffmpeg as im_ffmpeg
+from datetime import time
 
 st.set_page_config(page_title="Video Copyright Remover", page_icon="🎬", layout="centered")
 
-st.title("🎬 Smart Video Copyright Remover (Easy Time Chooser)")
-st.write("ভিডিও আপলোড করুন, প্লেয়ার দেখে সরাসরি মিনিট ও সেকেন্ড টেনে সেট করে কেটে ফেলুন।")
+st.title("🎬 Smart Video Copyright Remover")
+st.write("ভিডিও আপলোড করুন এবং মোবাইলের মতো স্লাইডার টেনে মিনিট-সেকেন্ড দেখে কেটে নিন।")
 
 uploaded_file = st.file_uploader("১. গ্যালারি থেকে মূল ভিডিও সিলেক্ট করুন (MP4)", type=["mp4"])
 
@@ -27,24 +28,30 @@ if uploaded_file is not None:
         video_bytes = video_file.read()
     st.video(video_bytes)
     
-    # --- মিনিট-সেকেন্ড কাটিং স্লাইডার ---
-    st.markdown("### ⏳ ভিডিও কাটার সময় নির্ধারণ করুন (সরাসরি মিনিট ও সেকেন্ড টেনে সেট করুন):")
+    # --- মোবাইল স্টাইল সিঙ্গেল স্লাইডার (মিনিট ও সেকেন্ড সহ) ---
+    st.markdown("### ⏳ ভিডিও কাটার টাইমলাইন সিলেক্ট করুন:")
+    st.info("💡 নিচের স্লাইডারের বামের বাটনটি টেনে শুরুর সময় এবং ডানের বাটনটি টেনে শেষের সময় সেট করুন।")
     
-    st.markdown("#### 🟢 ভিডিওর শুরুর সময় (Start Time):")
-    start_min = st.slider("শুরুর মিনিট (Minute)", min_value=0, max_value=60, value=0, step=1, key="s_m")
-    start_sec = st.slider("শুরুর সেকেন্ড (Second)", min_value=0, max_value=59, value=0, step=1, key="s_s")
+    # স্লাইডারে সরাসরি মিনিট ও সেকেন্ড ফরম্যাট করার জন্য datetime.time ব্যবহার করা হয়েছে
+    # ডিফল্টভাবে ০ মিনিট ০ সেকেন্ড থেকে ৫ মিনিট ০ সেকেন্ড পর্যন্ত রেঞ্জ রাখা হয়েছে
+    time_range = st.slider(
+        "ভিдиоর শুরুর এবং শেষের সময় (মিনিট:সেকেন্ড):",
+        min_value=time(0, 0, 0),
+        max_value=time(0, 10, 0), # সর্বোচ্চ ১০ মিনিট পর্যন্ত ভিডিও সাপোর্ট করবে
+        value=(time(0, 0, 0), time(0, 0, 30)), # ডিফল্ট রেঞ্জ ৩০ সেকেন্ড সেট করা
+        format="mm:ss" # স্ক্রিনে সরাসরি মিনিট ও সেকেন্ড (MM:SS) দেখাবে
+    )
     
-    st.markdown("#### 🔴 ভিডিওর শেষের সময় (End Time):")
-    end_min = st.slider("শেষের মিনিট (Minute)", min_value=0, max_value=60, value=0, step=1, key="e_m")
-    end_sec = st.slider("শেষের সেকেন্ড (Second)", min_value=0, max_value=59, value=0, step=1, key="e_s")
+    start_time = time_range[0]
+    end_time = time_range[1]
     
-    # ব্যাকগ্রাউন্ডে FFmpeg এর জন্য সেকেন্ড হিসাব করা
-    total_start_seconds = (start_min * 60) + start_sec
-    total_end_seconds = (end_min * 60) + end_sec
+    # ব্যাকগ্রাউন্ড প্রসেসের জন্য সেকেন্ড হিসাব করা
+    total_start_seconds = start_time.minute * 60 + start_time.second
+    total_end_seconds = end_time.minute * 60 + end_time.second
     
-    # --- স্ক্রিনে মিনিট ও সেকেন্ডে সময় দেখানোর অংশ ---
-    st.markdown("⚙️ **আপনার সিলেক্ট করা সময়:**")
-    st.info(f"🎬 ভিডিওটি **{start_min} মিনিট {start_sec} সেকেন্ড** থেকে শুরু হয়ে **{end_min} মিনিট {end_sec} সেকেন্ড** পর্যন্ত কেটে রাখা হবে।")
+    # স্ক্রিনে সুন্দর করে মিনিট ও সেকেন্ড লিখে দেখানো
+    st.markdown("🎯 **আপনার সিলেক্ট করা সময়:**")
+    st.warning(f"🎬 ভিডিওটি **{start_time.minute} মিনিট {start_time.second} সেকেন্ড** থেকে শুরু করে **{end_time.minute} মিনিট {end_time.second} সেকেন্ড** পর্যন্ত কেটে নেওয়া হবে।")
     st.markdown("---")
     
     # --- ওয়াটারমার্ক সিস্টেম ---
@@ -92,6 +99,8 @@ if uploaded_file is not None:
     if st.button("🚀 Process, Cut & Remove Copyright"):
         if watermark_type == "লোগোর ছবি আপলোড করে (Image/Logo Watermark)" and not logo_uploaded:
             st.error("❌ দয়া করে আপনার লোগোর ছবিটি আপলোড করুন!")
+        elif total_start_seconds >= total_end_seconds:
+            st.error("❌ ভুল সিলেকশন! ভিডিওর শেষের সময় অবশ্যই শুরুর সময়ের চেয়ে বেশি হতে হবে।")
         else:
             with st.spinner("ভিডিও প্রসেসিং এবং কাটিংয়ের কাজ চলছে... একটু অপেক্ষা করুন"):
                 try:
@@ -101,12 +110,8 @@ if uploaded_file is not None:
                     ffmpeg_exe = im_ffmpeg.get_ffmpeg_exe()
                     command = [ffmpeg_exe, '-y']
                     
-                    if total_start_seconds > 0:
-                        command += ['-ss', str(total_start_seconds)]
-                    if total_end_seconds > 0:
-                        command += ['-to', str(total_end_seconds)]
-                        
-                    command += ['-i', input_path]
+                    # সুনির্দিষ্ট ও নিখুঁত ট্রিম এফেক্ট
+                    command += ['-ss', str(total_start_seconds), '-to', str(total_end_seconds), '-i', input_path]
                     
                     if watermark_type == "লোগোর ছবি আপলোড করে (Image/Logo Watermark)":
                         command += [
@@ -125,10 +130,10 @@ if uploaded_file is not None:
                         '-c:a', 'aac', '-preset', 'veryfast', output_path
                     ]
                     
-                    subprocess.run(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+                    result = subprocess.run(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
                     
                     if os.path.exists(output_path) and os.path.getsize(output_path) > 0:
-                        st.success("🎉 চমৎকার! আপনার ভিডিওটি প্রপারলি এডিট করা হয়েছে।")
+                        st.success("🎉 আলহামদুলিল্লাহ! আপনার ভিডিওটি প্রপারলি এডিট করা হয়েছে।")
                         
                         with open(output_path, "rb") as file:
                             st.download_button(
@@ -138,7 +143,8 @@ if uploaded_file is not None:
                                 mime="video/mp4"
                             )
                     else:
-                        st.error("❌ প্রসেস করা যায়নি। আপনার সিলেক্ট করা সময় বা ভিডিও ফাইলটি আরেকবার চেক করুন।")
+                        st.error("❌ প্রসেস করা যায়নি। সার্ভার এরর ডিটেইলস নিচে দেওয়া হলো:")
+                        st.code(result.stderr)
                     
                     if os.path.exists(input_path): os.remove(input_path)
                     if os.path.exists(logo_path): os.remove(logo_path)
