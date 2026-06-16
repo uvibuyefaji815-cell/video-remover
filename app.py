@@ -2,19 +2,18 @@ import streamlit as st
 import subprocess
 import os
 import imageio_ffmpeg as im_ffmpeg
-import json
+from moviepy.editor import VideoFileClip
 
 st.set_page_config(page_title="Video Copyright Remover", page_icon="🎬", layout="centered")
 
 st.title("🎬 Smart Video Copyright Remover")
-st.write("ভিডিও আপলোড করুন, সেকেন্ড বসিয়ে কেটে নিন এবং নিখুঁত ওয়াটারমার্ক যুক্ত করুন।")
+st.write("ভিডিও আপলোড করুন। আপনার ভিডিও যতটুকু লম্বা, স্লাইডার ঠিক ততটুকুই দেখাবে।")
 
 uploaded_file = st.file_uploader("১. গ্যালারি থেকে মূল ভিডিও সিলেক্ট করুন (MP4)", type=["mp4"])
 
 if uploaded_file is not None:
     input_path = "temp_input.mp4"
     output_path = "my_branded_video.mp4"
-    logo_path = "temp_logo.png"
     
     with open(input_path, "wb") as f:
         f.write(uploaded_file.read())
@@ -28,117 +27,95 @@ if uploaded_file is not None:
         video_bytes = video_file.read()
     st.video(video_bytes)
     
-    # --- ভিডিওর আসল দৈর্ঘ্য বের করা ---
-    video_duration = 26.0
+    # --- মুভিপাই (MoviePy) দিয়ে ভিডিওর আসল দৈর্ঘ্য বের করা ---
+    video_duration = 26.0  # ডিফল্ট ব্যাকআপ
     try:
-        ffmpeg_exe = im_ffmpeg.get_ffmpeg_exe()
-        ffprobe_exe = ffmpeg_exe.replace("ffmpeg", "ffprobe")
-        
-        cmd = [ffprobe_exe, "-v", "error", "-show_entries", "format=duration", "-of", "json", input_path]
-        result = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
-        info = json.loads(result.stdout)
-        video_duration = float(info["format"]["duration"])
-    except:
-        pass
+        clip = VideoFileClip(input_path)
+        video_duration = clip.duration
+        clip.close()  # ফাইলটি মেমোরি থেকে রিলিজ করা
+    except Exception as e:
+        st.warning(f"ভিডিওর দৈর্ঘ্য মাপতে সামান্য সমস্যা হয়েছে, ডিফল্ট সময় ব্যবহার করা হচ্ছে।")
 
-    video_duration = round(video_duration, 1)
+    # সেকেন্ডকে সুন্দর করে রাউন্ড করা
+    video_duration = round(video_duration, 2)
 
     st.markdown("---")
-    st.markdown(f"### ✂️ ভিডিও কাটিং সিস্টেম (মোট দৈর্ঘ্য: `{video_duration}` সেকেন্ড)")
+    st.markdown(f"### ✂️ ভিডিও কাটিং টাইমলাইন (ভিডিওর আসল সাইজ: `{video_duration}` সেকেন্ড)")
     
-    col1, col2 = st.columns(2)
-    with col1:
-        total_start_seconds = st.number_input("⏱️ শুরুর সেকেন্ড (Start):", min_value=0.0, max_value=float(video_duration), value=0.0, step=0.5)
-    with col2:
-        total_end_seconds = st.number_input("⏱️ শেষের সেকেন্ড (End):", min_value=0.1, max_value=float(video_duration), value=float(video_duration), step=0.5)
+    # আপনার রিকোয়েস্ট অনুযায়ী: ভিডিও যতটুকু লম্বা, স্লাইডার ঠিক ততটুকুই রেঞ্জ নিবে
+    time_range = st.slider(
+        "🎞️ ভিডিওর কাটিং পয়েন্ট সিলেক্ট করুন (টেনে ছোট-বড় করুন):",
+        min_value=0.0,
+        max_value=float(video_duration),
+        value=(0.0, float(video_duration)), # ডিফল্টভাবে পুরো ভিডিও সিলেক্ট থাকবে
+        step=0.1,
+        format="%.2f সেকেন্ড",
+        help="বাম পাশের বাটনটি শুরুর সেকেন্ড এবং ডান পাশের বাটনটি শেষের সেকেন্ড।"
+    )
     
+    total_start_seconds = time_range[0]
+    total_end_seconds = time_range[1]
+    
+    # সিলেক্ট করা সময়ের হিসাব দেখানো
+    st.markdown(f"🎯 **আপনার সিলেক্ট করা সময়:** `{total_start_seconds:.2f}` সেকেন্ড থেকে `{total_end_seconds:.2f}` সেকেন্ড পর্যন্ত অংশ কাটা হবে। (মোট দৈর্ঘ্য হবে: `{round(total_end_seconds - total_start_seconds, 2)}` সেকেন্ড)")
     st.markdown("---")
     
     # --- ওয়াটারমার্ক সিস্টেম ---
     st.markdown("### 🎯 আপনার ওয়াটারমার্ক বা লোগো সেট করুন:")
-    watermark_type = st.radio("কীভাবে ওয়াটারমার্ক লাগাতে চান?", ["পেজের নাম লিখে (Text Watermark)", "লোগোর ছবি আপলোড করে (Image/Logo Watermark)", "কোনো ওয়াটারমার্ক ছাড়া (None)"])
+    watermark_type = st.radio("কীভাবে ওয়াটারমার্ক লাগাতে চান?", ["পেজের নাম লিখে (Text Watermark)", "কোনো ওয়াটারমার্ক ছাড়া (None)"])
     
-    # বেসিক ক্রপ ও কালার ফিল্টার (কপিরাইট রিমুভার)
+    # কপিরাইট রিমুভার ফিল্টার (সামান্য ক্রপ ও কালার অ্যাডজাস্টমেন্ট)
     base_vf = "crop=in_w-20:in_h-20:10:10,eq=brightness=0.03:contrast=1.03"
-    logo_uploaded = False
     
     if watermark_type == "পেজের নাম লিখে (Text Watermark)":
-        text_watermark = st.text_input("আপনার পেজ বা চ্যানেলের নাম লিখুন (ইংরেজিতে):", "CineVideo BD")
+        text_watermark = st.text_input("আপনার পেজ বা চ্যানেলের নাম লিখুন (ইংরেজিতে):", "The Unknown codex")
         text_style = st.selectbox(
             "টেক্সটের ডিজাইন বা স্টাইল সিলেক্ট করুন:",
             [
                 "১. রেগুলার বোল্ড (Classic Bold)", 
                 "২. স্টাইলিশ বেঁকা-তেরা (Stylish Italic)", 
-                "৩. গথিক/মডার্ন টাইপ (Modern Monospace)",
-                "৪. গোল্ডেন শ্যাডো বক্স (Golden Elegant Box)",
-                "৫. সাইয়ান গ্লো এফেক্ট (Cyan Glow Style)"
+                "৩. সাইয়ান গ্লো এফেক্ট (Cyan Glow Style)"
             ]
         )
         
-        # সুনির্দিষ্ট টেক্সট ফিল্টার যা ভিডিওর উপরে ডানপাশে বসবে
         if text_watermark:
             if text_style == "১. রেগুলার বোল্ড (Classic Bold)":
-                text_filter = f"drawtext=text='{text_watermark}':x=w-tw-40:y=40:fontcolor=white:fontsize=28:bold=1:box=1:boxcolor=black@0.4:boxborderw=4"
+                text_filter = f"drawtext=text='{text_watermark}':x=w-tw-40:y=h-th-40:fontcolor=white:fontsize=24:bold=1:box=1:boxcolor=black@0.4"
             elif text_style == "২. স্টাইলিশ বেঁকা-তেরা (Stylish Italic)":
-                text_filter = f"drawtext=text='{text_watermark}':x=w-tw-40:y=40:fontcolor=white:fontsize=28:italic=1:bold=1"
-            elif text_style == "৩. গথিক/মডার্ন টাইপ (Modern Monospace)":
-                text_filter = f"drawtext=text='{text_watermark}':x=w-tw-40:y=40:fontcolor=lightgray:fontsize=26"
-            elif text_style == "৪. গোল্ডেন শ্যাডো বক্স (Golden Elegant Box)":
-                text_filter = f"drawtext=text='{text_watermark}':x=w-tw-40:y=40:fontcolor=yellow:fontsize=26:bold=1:box=1:boxcolor=black@0.5:boxborderw=5"
-            elif text_style == "৫. সাইয়ান গ্লো এফেক্ট (Cyan Glow Style)":
-                text_filter = f"drawtext=text='{text_watermark}':x=w-tw-40:y=40:fontcolor=cyan:fontsize=28:bold=1:box=1:boxcolor=black@0.3"
+                text_filter = f"drawtext=text='{text_watermark}':x=w-tw-40:y=h-th-40:fontcolor=white:fontsize=24:italic=1:bold=1"
+            elif text_style == "৩. সাইয়ান গ্লো এফেক্ট (Cyan Glow Style)":
+                text_filter = f"drawtext=text='{text_watermark}':x=w-tw-40:y=h-th-40:fontcolor=cyan:fontsize=24:bold=1"
             
-            # বেস ফিল্টারের সাথে টেক্সট ফিল্টার জোড়া দেওয়া
             vf_final = f"{base_vf},{text_filter}"
-            
-    elif watermark_type == "লোগোর ছবি আপলোড করে (Image/Logo Watermark)":
-        logo_file = st.file_uploader("আপনার লোগোর ছবি আপলোড করুন (PNG)", type=["png", "jpg", "jpeg"])
-        if logo_file is not None:
-            logo_uploaded = True
-            with open(logo_path, "wb") as f:
-                f.write(logo_file.read())
-            # লোগো ওভারলে করার জন্য ক্যারেক্টার ফিল্টার চেইন
-            vf_final = f"[0:v]{base_vf}[bg];movie=temp_logo.png,scale=60:60[logo];[bg][logo]overlay=main_w-overlay_w-40:40"
     else:
         vf_final = base_vf
 
     st.markdown("---")
     
     if st.button("🚀 Process, Cut & Remove Copyright"):
-        if watermark_type == "লোগোর ছবি আপলোড করে (Image/Logo Watermark)" and not logo_uploaded:
-            st.error("❌ দয়া করে আপনার লোগোর ছবিটি আপলোড করুন!")
-        elif total_start_seconds >= total_end_seconds:
+        if total_start_seconds >= total_end_seconds:
             st.error("❌ ভুল সিলেকশন! ভিডিওর শেষের সময় অবশ্যই শুরুর সময়ের চেয়ে বেশি হতে হবে।")
         else:
-            with st.spinner("ভিডিও প্রসেস ও ওয়াটারমার্ক যুক্ত করার কাজ চলছে..."):
+            with st.spinner("ভিডিও প্রসেস, কাটিং ও কপিরাইট রিমুভ করার কাজ চলছে..."):
                 try:
                     if os.path.exists(output_path):
                         os.remove(output_path)
                     
                     ffmpeg_exe = im_ffmpeg.get_ffmpeg_exe()
                     
+                    # সুনির্দিষ্ট সেকেন্ড ধরে কাটার নিখুঁত কমান্ড
                     command = [
                         ffmpeg_exe, '-y',
-                        '-ss', f"{total_start_seconds:.1f}",
-                        '-to', f"{total_end_seconds:.1f}",
+                        '-ss', f"{total_start_seconds:.2f}",
+                        '-to', f"{total_end_seconds:.2f}",
                         '-i', input_path
                     ]
                     
                     audio_filter = "asetrate=44100*1.04,atempo=1.02"
                     
-                    # লোগো এবং টেক্সটের জন্য আলাদা আলাদা ১০০% কার্যকরী ফিল্টার কমপ্লেক্স লজিক
-                    if watermark_type == "লোগোর ছবি আপলোড করে (Image/Logo Watermark)":
-                        command += [
-                            '-filter_complex', f"{vf_final}[v_out];[0:a]{audio_filter}[a_out]",
-                            '-map', '[v_out]', '-map', '[a_out]'
-                        ]
-                    else:
-                        command += [
-                            '-filter_complex', f"[0:v]{vf_final}[v_out];[0:a]{audio_filter}[a_out]",
-                            '-map', '[v_out]', '-map', '[a_out]'
-                        ]
-                        
                     command += [
+                        '-filter_complex', f"[0:v]{vf_final}[v_out];[0:a]{audio_filter}[a_out]",
+                        '-map', '[v_out]', '-map', '[a_out]',
                         '-c:v', 'libx264', '-b:v', '1200k',
                         '-c:a', 'aac', '-b:a', '128k',
                         '-preset', 'veryfast', output_path
@@ -147,13 +124,13 @@ if uploaded_file is not None:
                     result = subprocess.run(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
                     
                     if os.path.exists(output_path) and os.path.getsize(output_path) > 0:
-                        st.success("🎉 আলহামদুলিল্লাহ! ওয়াটারমার্কসহ ভিডিও সফলভাবে তৈরি হয়েছে।")
+                        st.success("🎉 আলহামদুলিল্লাহ! আপনার সিলেক্ট করা সময় অনুযায়ী ভিডিও সফলভাবে তৈরি হয়েছে।")
                         
                         with open(output_path, "rb") as file:
                             st.download_button(
                                 label="⬇️ গ্যালারিতে সেভ করুন (Download Video)",
                                 data=file,
-                                file_name="my_branded_video.mp4",
+                                file_name="cut_copyright_removed.mp4",
                                 mime="video/mp4"
                             )
                     else:
@@ -161,7 +138,6 @@ if uploaded_file is not None:
                         st.code(result.stderr)
                     
                     if os.path.exists(input_path): os.remove(input_path)
-                    if os.path.exists(logo_path): os.remove(logo_path)
                     
                 except Exception as e:
                     st.error(f"দুঃখিত, একটি ইন্টারনাল এরর হয়েছে: {str(e)}")
