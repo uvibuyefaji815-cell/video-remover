@@ -7,7 +7,7 @@ import json
 st.set_page_config(page_title="Video Copyright Remover", page_icon="🎬", layout="centered")
 
 st.title("🎬 Smart Video Copyright Remover")
-st.write("ভিডিও আপলোড করুন। ভিডিওর দৈর্ঘ্য অনুযায়ী নিখুঁতভাবে কাটিং পয়েন্ট সিলেক্ট করুন।")
+st.write("ভিডিও আপলোড করুন এবং নিচে সরাসরি সেকেন্ড বসিয়ে নিখুঁতভাবে কেটে নিন।")
 
 uploaded_file = st.file_uploader("১. গ্যালারি থেকে মূল ভিডিও সিলেক্ট করুন (MP4)", type=["mp4"])
 
@@ -28,8 +28,8 @@ if uploaded_file is not None:
         video_bytes = video_file.read()
     st.video(video_bytes)
     
-    # --- ভিডিওর আসল সময় (Duration) অটোমেটিক ও নিখুঁতভাবে বের করা ---
-    video_duration = 26  # কোনো কারণে ফেইল করলে স্ট্যান্ডার্ড ২৬ সেকেন্ড ব্যাকআপ থাকবে
+    # --- ভিডিওর আসল দৈর্ঘ্য (Duration) বের করার ১০০% সঠিক কমান্ড ---
+    video_duration = 26.0  # সেফটি ব্যাকআপ
     try:
         ffmpeg_exe = im_ffmpeg.get_ffmpeg_exe()
         ffprobe_exe = ffmpeg_exe.replace("ffmpeg", "ffprobe")
@@ -37,46 +37,49 @@ if uploaded_file is not None:
         cmd = [ffprobe_exe, "-v", "error", "-show_entries", "format=duration", "-of", "json", input_path]
         result = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
         info = json.loads(result.stdout)
-        video_duration = int(float(info["format"]["duration"]))
-    except:
+        video_duration = float(info["format"]["duration"])
+    except Exception as e:
         pass
 
     st.markdown("---")
-    st.markdown(f"### 🎞️ ভিডিও কাটিং সিস্টেম (ভিডিওর মোট দৈর্ঘ্য: `{video_duration}` সেকেন্ড)")
+    st.markdown(f"### ✂️ ভিডিও কাটিং সিস্টেম (ভিডিওর মোট দৈর্ঘ্য: `{video_duration:.2f}` সেকেন্ড)")
+    st.write("👉 মোবাইলের স্লাইডারে জ্যাম লাগার কারণে স্লাইডার বাদ দেওয়া হয়েছে। নিচে সরাসরি সেকেন্ড লিখে দিন অথবা + / - বাটনে চাপুন।")
     
-    # পদ্ধতি ১: অটো-ফিট স্লাইডার (ভিডিও ২৬ সেকেন্ড হলে স্লাইডারও ২৬ সেকেন্ডের হবে)
-    time_range = st.slider(
-        "অপশন এ: স্লাইডার টেনে ছোট-বড় করুন:",
-        min_value=0,
-        max_value=video_duration,
-        value=(0, video_duration),
-        step=1,
-        help="বাম পাশের বাটনটি শুরুর সেকেন্ড এবং ডান পাশের বাটনটি শেষের সেকেন্ড।"
-    )
-    
-    st.write("**অথবা**")
-    
-    # পদ্ধতি ২: প্লাস-মাইনাস বক্স (স্লাইডার না নড়লে সরাসরি এখানে সেকেন্ড লিখে বা কমিয়ে-বাড়িয়ে দিতে পারবেন)
+    # স্লাইডার বাদ দিয়ে সরাসরি নিখুঁত প্লাস-মাইনাস বক্স সিস্টেম
     col1, col2 = st.columns(2)
     with col1:
-        start_sec = st.number_input("অপশন বি: কত সেকেন্ড থেকে শুরু হবে?", min_value=0, max_value=video_duration, value=int(time_range[0]), step=1)
+        total_start_seconds = st.number_input(
+            "⏱️ কত সেকেন্ড থেকে শুরু করবেন (Start Second):", 
+            min_value=0.0, 
+            max_value=float(video_duration), 
+            value=0.0, 
+            step=0.5,
+            help="ভিডিওর শুরুর সেকেন্ড এখানে লিখুন।"
+        )
     with col2:
-        end_sec = st.number_input("অপশন বি: কত সেকেন্ডে শেষ হবে?", min_value=0, max_value=video_duration, value=int(time_range[1]), step=1)
+        total_end_seconds = st.number_input(
+            "⏱️ কত সেকেন্ডে শেষ করবেন (End Second):", 
+            min_value=0.1, 
+            max_value=float(video_duration), 
+            value=float(video_duration), 
+            step=0.5,
+            help="ভিডিওর শেষের সেকেন্ড এখানে লিখুন।"
+        )
     
-    # ফাইনাল সেকেন্ড নির্ধারণ (ইউজার স্লাইডার ব্যবহার করুক বা বক্স—সঠিকটা ইনপুট হবে)
-    # যদি স্লাইডার পরিবর্তন হয় তবে স্লাইডারের মান যাবে, নতুবা বক্সের মান যাবে
-    total_start_seconds = start_sec if start_sec != int(time_range[0]) else int(time_range[0])
-    total_end_seconds = end_sec if end_sec != int(time_range[1]) else int(time_range[1])
-    
-    # ইউজার ইন্টারফেস
+    # ইনফো বক্স
     st.markdown("### 🎯 আপনার সিলেক্ট করা সময়:")
-    st.info(f"🎬 ভিডিওটি **{total_start_seconds}** সেকেন্ড থেকে শুরু হয়ে **{total_end_seconds}** সেকেন্ড পর্যন্ত কেটে রাখা হবে। (মোট দৈর্ঘ্য: {total_end_seconds - total_start_seconds} সেকেন্ড)")
+    if total_start_seconds >= total_end_seconds:
+        st.error("❌ ভুল সিলেকশন! ভিডিওর শেষের সময় অবশ্যই শুরুর সময়ের চেয়ে বেশি হতে হবে।")
+    else:
+        st.info(f"🎬 ভিডিওটি **{total_start_seconds:.1f}** সেকেন্ড থেকে শুরু হয়ে **{total_end_seconds:.1f}** সেকেন্ড পর্যন্ত কাটা হবে। (কাটা ভিডিওর মোট সাইজ: {total_end_seconds - total_start_seconds:.1f} সেকেন্ড)")
+    
     st.markdown("---")
     
     # --- ওয়াটারমার্ক সিস্টেম ---
     st.markdown("### 🎯 আপনার ওয়াটারমার্ক বা লোগো সেট করুন:")
     watermark_type = st.radio("কীভাবে ওয়াটারমার্ক লাগাতে চান?", ["পেজের নাম লিখে (Text Watermark)", "লোগোর ছবি আপলোড করে (Image/Logo Watermark)", "কোনো ওয়াটারমার্ক ছাড়া (None)"])
     
+    # প্রফেশনাল কপিরাইট ফিল্টার (ক্রপ + কালার পরিবর্তন)
     vf_filters = "crop=in_w-40:in_h-40:20:20,eq=brightness=0.05:contrast=1.04"
     logo_uploaded = False
     
@@ -128,10 +131,11 @@ if uploaded_file is not None:
                     
                     ffmpeg_exe = im_ffmpeg.get_ffmpeg_exe()
                     
+                    # নিখুঁত হাই-স্পিড এফএফএমপেগ কাটিং ও অডিও পিচ কমান্ড
                     command = [
                         ffmpeg_exe, '-y',
-                        '-ss', str(total_start_seconds),
-                        '-to', str(total_end_seconds),
+                        '-ss', f"{total_start_seconds:.3f}",
+                        '-to', f"{total_end_seconds:.3f}",
                         '-i', input_path
                     ]
                     
