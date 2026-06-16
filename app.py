@@ -3,10 +3,11 @@ import subprocess
 import os
 import imageio_ffmpeg as im_ffmpeg
 from datetime import time
+import json
 
 st.set_page_config(page_title="Video Copyright Remover", page_icon="🎬", layout="centered")
 
-st.title("🎬 Smart Video Copyright Remover (Video Player Style)")
+st.title("🎬 Smart Video Copyright Remover")
 st.write("ভিডিও আপলোড করুন এবং প্লেয়ারের ঠিক নিচে মোবাইলের মতো টাইমলাইন টেনে কেটে নিন।")
 
 uploaded_file = st.file_uploader("১. গ্যালারি থেকে মূল ভিডিও সিলেক্ট করুন (MP4)", type=["mp4"])
@@ -28,27 +29,44 @@ if uploaded_file is not None:
         video_bytes = video_file.read()
     st.video(video_bytes)
     
-    # --- মোবাইল স্টাইল ট্রিম বার ---
-    # এটি হুবহু প্লেয়ারের টাইমিংয়ের সাথে ম্যাচ করে মিনিট:সেকেন্ড দেখাবে
+    # --- ভিডিওর আসল সময় (Duration) অটোমেটিক বের করার লজিক ---
+    video_duration = 30 # কোনো কারণে ফেইল করলে ডিফল্ট ৩০ সেকেন্ড থাকবে
+    try:
+        ffmpeg_exe = im_ffmpeg.get_ffmpeg_exe()
+        ffprobe_exe = ffmpeg_exe.replace("ffmpeg", "ffprobe")
+        
+        # ভিডিওর মেটাডাটা থেকে সঠিক সেকেন্ড বের করা
+        cmd = [ffprobe_exe, "-v", "error", "-show_entries", "format=duration", "-of", "json", input_path]
+        result = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+        info = json.loads(result.stdout)
+        video_duration = int(float(info["format"]["duration"]))
+    except:
+        pass
+
+    # সেকেন্ডকে মিনিট ও সেকেন্ডে রূপান্তর (স্লাইডারের ম্যাক্সিমাম লিমিটের জন্য)
+    max_min = video_duration // 60
+    max_sec = video_duration % 60
+    
+    # --- অটো-ফিট মোবাইল ফ্রেন্ডলি স্লাইডার ---
+    # ভিডিওর সাইজ অনুযায়ী স্লাইডার ছোট-বড় হবে, তাই সহজে টানা যাবে
     time_range = st.slider(
         "🎞️ ভিডিওর কাটিং পয়েন্ট সিলেক্ট করুন (টেনে ছোট-বড় করুন):",
         min_value=time(0, 0, 0),
-        max_value=time(0, 15, 0), # সর্বোচ্চ ১৫ মিনিটের ভিডিও রেঞ্জ
-        value=(time(0, 0, 0), time(0, 0, 26)), # ভিডিওর শুরুর স্ট্যান্ডার্ড ডিফল্ট
+        max_value=time(0, max_min, max_sec), 
+        value=(time(0, 0, 0), time(0, max_min, max_sec)), # নিজে থেকেই পুরো ভিডিও সিলেক্ট হয়ে থাকবে
         format="mm:ss",
-        help="বাম পাশের বাটন টেনে শুরুর মিনিট-সেকেন্ড এবং ডান পাশের বাটন টেনে শেষের মিনিট-সেকেন্ড সেট করুন।"
+        help="বামের বাটন টেনে শুরুর সময় এবং ডানের বাটন টেনে শেষের সময় সেট করুন।"
     )
     
     start_time = time_range[0]
     end_time = time_range[1]
     
-    # ব্যাকগ্রাউন্ডের জন্য সেকেন্ড কনভার্সন
+    # ব্যাকগ্রাউন্ডের জন্য সেকেন্ড হিসাব
     total_start_seconds = start_time.minute * 60 + start_time.second
     total_end_seconds = end_time.minute * 60 + end_time.second
     
-    # ইউজার ইন্টারফেস সুন্দর করা
     st.markdown("### 🎯 আপনার সিলেক্ট করা সময়:")
-    st.info(f"🎬 ভিডিওটি **{start_time.minute:02d}:{start_time.second:02d}** থেকে শুরু হয়ে **{end_time.minute:02d}:{end_time.second:02d}** মিনিট পর্যন্ত কাটা হবে।")
+    st.info(f"🎬 ভিডিওটি **{start_time.minute:02d}:{start_time.second:02d}** থেকে শুরু হয়ে **{end_time.minute:02d}:{end_time.second:02d}** পর্যন্ত কেটে রাখা হবে।")
     st.markdown("---")
     
     # --- ওয়াটারমার্ক সিস্টেম ---
@@ -94,7 +112,7 @@ if uploaded_file is not None:
     st.markdown("---")
     
     if st.button("🚀 Process, Cut & Remove Copyright"):
-        if watermark_type == "লোগোর ছবি আপলোড করে (Image/Logo Watermark)" and not logo_uploaded:
+        if watermark_type == "ลোগোর ছবি আপলোড করে (Image/Logo Watermark)" and not logo_uploaded:
             st.error("❌ দয়া করে আপনার লোগোর ছবিটি আপলোড করুন!")
         elif total_start_seconds >= total_end_seconds:
             st.error("❌ ভুল সিলেকশন! ভিডিওর শেষের সময় অবশ্যই শুরুর সময়ের চেয়ে বেশি হতে হবে।")
@@ -106,7 +124,6 @@ if uploaded_file is not None:
                     
                     ffmpeg_exe = im_ffmpeg.get_ffmpeg_exe()
                     
-                    # হাই-স্পিড ট্রিম ও ফিল্টার কমান্ড
                     command = [
                         ffmpeg_exe, '-y',
                         '-ss', str(total_start_seconds),
