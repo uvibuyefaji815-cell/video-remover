@@ -3,6 +3,7 @@ import subprocess
 import os
 import imageio_ffmpeg as im_ffmpeg
 import struct
+from PIL import Image, ImageDraw, ImageFont
 
 st.set_page_config(page_title="Video Copyright Remover", page_icon="🎬", layout="centered")
 
@@ -11,7 +12,7 @@ st.write("ভিডিও আপলোড করুন। আপনার ভি
 
 uploaded_file = st.file_uploader("১. গ্যালারি থেকে মূল ভিডিও সিলেক্ট করুন (MP4)", type=["mp4"])
 
-# এমপি৪ ফাইলের হেডার থেকে নিখুঁতভাবে দৈর্ঘ্য (Duration) বের করার লজিক
+# এমপি৪ ফাইলের হেডার থেকে নিখুঁতভাবে দৈর্ঘ্য (Duration) বের করার পাইথন লজিক
 def get_mp4_duration(file_stream):
     try:
         file_stream.seek(0)
@@ -35,6 +36,7 @@ def get_mp4_duration(file_stream):
 if uploaded_file is not None:
     input_path = "temp_input.mp4"
     output_path = "my_branded_video.mp4"
+    generated_logo_path = "temp_text_logo.png"
     
     # ভিডিওর আসল দৈর্ঘ্য নিজে থেকে বের হবে
     video_duration = get_mp4_duration(uploaded_file)
@@ -88,25 +90,48 @@ if uploaded_file is not None:
                 try:
                     if os.path.exists(output_path):
                         os.remove(output_path)
+                    if os.path.exists(generated_logo_path):
+                        os.remove(generated_logo_path)
                     
                     ffmpeg_exe = im_ffmpeg.get_ffmpeg_exe()
                     
-                    # কোনো স্পেশাল ক্যারেক্টার বা ব্র্যাকেট ছাড়া একদম সিম্পল ফিল্টার তৈরি
-                    if watermark_type == "পেজের নাম লিখে (Text Watermark)":
-                        vf_filter = f"crop=iw-10:ih-10:5:5,eq=brightness=0.03:contrast=1.03,drawtext=text='{text_watermark}':x=w-tw-40:y=h-th-40:fontcolor=yellow:fontsize=24:bold=1"
-                    else:
-                        vf_filter = "crop=iw-10:ih-10:5:5,eq=brightness=0.03:contrast=1.03"
+                    # কপিরাইট রিমুভার বেস ফিল্টার (সামান্য ক্রপ ও ব্রাইটনেস পরিবর্তন)
+                    vf_filter = "crop=iw-10:ih-10:5:5,eq=brightness=0.03:contrast=1.03"
+                    
+                    # সার্ভারের 'drawtext' এরর এড়াতে পাইথন দিয়ে টেক্সটকে লোগো ছবিতে রূপান্তর করার লজিক
+                    if watermark_type == "পেজের নাম লিখে (Text Watermark)" and text_watermark:
+                        # একটি স্বচ্ছ পিএনজি (Transparent PNG) ছবি তৈরি
+                        img = Image.new('RGBA', (300, 60), color=(0, 0, 0, 0))
+                        d = ImageDraw.Draw(img)
+                        
+                        # কালো শ্যাডো বক্স ব্যাকগ্রাউন্ড আঁকা
+                        d.rectangle([(0, 0), (300, 50)], fill=(0, 0, 0, 140))
+                        # টেক্সট লেখা (হলুদ কালার)
+                        d.text((15, 12), text_watermark, fill=(255, 215, 0, 255))
+                        
+                        # লোগোটি সেভ করা
+                        img.save(generated_logo_path)
+                        
+                        # FFmpeg overlay ফিল্টার যা লোগো ছবিটিকে ভিডিওর নিচে ডান কোনায় বসাবে
+                        vf_filter += f";movie={generated_logo_path}[logo];[in][logo]overlay=W-w-30:H-h-30[out]"
                     
                     # অডিওর ফিল্টার
                     af_filter = "asetrate=44100*1.03,atempo=1.02"
                     
-                    # এফএফএমপেইগ-এর স্ট্যান্ডার্ড কমান্ড স্ট্রাকচার (যা কোনো সার্ভারে ফেল করে না)
+                    # নিরাপদ এবং স্ট্যান্ডার্ড FFmpeg কম্যান্ড ফরম্যাট
                     command = [
                         ffmpeg_exe, '-y',
                         '-i', input_path,
                         '-ss', f"{total_start_seconds:.2f}",
                         '-to', f"{total_end_seconds:.2f}",
-                        '-vf', vf_filter,
+                    ]
+                    
+                    if watermark_type == "পেজের নাম লিখে (Text Watermark)":
+                        command += ['-filter_complex', vf_filter]
+                    else:
+                        command += ['-vf', vf_filter]
+                        
+                    command += [
                         '-af', af_filter,
                         '-c:v', 'libx264',
                         '-preset', 'veryfast',
@@ -131,7 +156,9 @@ if uploaded_file is not None:
                         st.error("❌ প্রসেসিং সম্পূর্ণ করা যায়নি। নিচে এরর ডিটেইলস দেওয়া হলো:")
                         st.code(result.stderr)
                     
+                    # সাময়িক ফাইল মুছে ফেলা
                     if os.path.exists(input_path): os.remove(input_path)
+                    if os.path.exists(generated_logo_path): os.remove(generated_logo_path)
                     
                 except Exception as e:
                     st.error(f"দুঃখিত, একটি ইন্টারনাল এরর হয়েছে: {str(e)}")
