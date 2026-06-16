@@ -11,7 +11,7 @@ st.write("ভিডিও আপলোড করুন। আপনার ভি
 
 uploaded_file = st.file_uploader("১. গ্যালারি থেকে মূল ভিডিও সিলেক্ট করুন (MP4)", type=["mp4"])
 
-# এমপি৪ ফাইলের হেডার বাইট থেকে নিখুঁতভাবে দৈর্ঘ্য (Duration) বের করার পাইথন লজিক
+# এমপি৪ ফাইলের হেডার থেকে নিখুঁতভাবে দৈর্ঘ্য (Duration) বের করার লজিক
 def get_mp4_duration(file_stream):
     try:
         file_stream.seek(0)
@@ -30,13 +30,13 @@ def get_mp4_duration(file_stream):
                 return round(duration / timescale, 2)
     except:
         pass
-    return 26.52  # ব্যাকআপ ডিফল্ট টাইম
+    return 10.50  # ব্যাকআপ ডিফল্ট টাইম
 
 if uploaded_file is not None:
     input_path = "temp_input.mp4"
     output_path = "my_branded_video.mp4"
     
-    # ভিডিওর আসল দৈর্ঘ্য নিজে থেকে নিখুঁতভাবে বের করা
+    # ভিডিওর আসল দৈর্ঘ্য নিজে থেকে বের হবে
     video_duration = get_mp4_duration(uploaded_file)
     
     with open(input_path, "wb") as f:
@@ -59,7 +59,7 @@ if uploaded_file is not None:
         "ভিডিওর কাটিং পয়েন্ট সিলেক্ট করুন (টেনে ছোট-বড় করুন):",
         min_value=0.0,
         max_value=float(video_duration),
-        value=(0.0, float(video_duration)),  # ডিফল্টভাবে পুরো ভিডিওর রেঞ্জ থাকবে
+        value=(0.0, float(video_duration)),
         step=0.05,
         format="%.2f সেকেন্ড"
     )
@@ -67,7 +67,7 @@ if uploaded_file is not None:
     total_start_seconds = time_range[0]
     total_end_seconds = time_range[1]
     
-    st.markdown(f"🎯 **আপনার সিলেক্ট করা সময়:** `{total_start_seconds:.2f}` সেকেন্ড থেকে শুরু হয়ে `{total_end_seconds:.2f}` সেকেন্ড পর্যন্ত কেটে রাখা হবে।")
+    st.markdown(f"🎯 **আপনার সিলেক্ট করা সময়:** `{total_start_seconds:.2f}` সেকেন্ড থেকে `{total_end_seconds:.2f}` সেকেন্ড পর্যন্ত কেটে রাখা হবে।")
     st.markdown("---")
     
     # --- ওয়াটারমার্ক সিস্টেম ---
@@ -91,26 +91,26 @@ if uploaded_file is not None:
                     
                     ffmpeg_exe = im_ffmpeg.get_ffmpeg_exe()
                     
-                    # এরর এড়াতে ফিল্টার চেইনকে একদম সহজ ও ব্র্যাকিং মুক্ত করা হয়েছে
+                    # কোনো স্পেশাল ক্যারেক্টার বা ব্র্যাকেট ছাড়া একদম সিম্পল ফিল্টার তৈরি
                     if watermark_type == "পেজের নাম লিখে (Text Watermark)":
-                        vf_filter = f"crop=iw-10:ih-10:5:5,eq=brightness=0.03:contrast=1.03,drawtext=text='{text_watermark}':x=w-tw-40:y=h-th-40:fontcolor=yellow:fontsize=24:bold=1:box=1:boxcolor=black@0.5"
+                        vf_filter = f"crop=iw-10:ih-10:5:5,eq=brightness=0.03:contrast=1.03,drawtext=text='{text_watermark}':x=w-tw-40:y=h-th-40:fontcolor=yellow:fontsize=24:bold=1"
                     else:
                         vf_filter = "crop=iw-10:ih-10:5:5,eq=brightness=0.03:contrast=1.03"
                     
-                    # অডিওর স্পিড সামান্য পরিবর্তন করার ফিল্টার
+                    # অডিওর ফিল্টার
                     af_filter = "asetrate=44100*1.03,atempo=1.02"
                     
-                    # কোনো জটিল ম্যাপিং ছাড়া সর্বকালের সবচেয়ে নিরাপদ এবং স্ট্যান্ডার্ড FFmpeg কম্যান্ড
+                    # এফএফএমপেইগ-এর স্ট্যান্ডার্ড কমান্ড স্ট্রাকচার (যা কোনো সার্ভারে ফেল করে না)
                     command = [
                         ffmpeg_exe, '-y',
+                        '-i', input_path,
                         '-ss', f"{total_start_seconds:.2f}",
                         '-to', f"{total_end_seconds:.2f}",
-                        '-i', input_path,
                         '-vf', vf_filter,
                         '-af', af_filter,
                         '-c:v', 'libx264',
                         '-preset', 'veryfast',
-                        '-crf', '22',
+                        '-crf', '23',
                         '-c:a', 'aac',
                         output_path
                     ]
