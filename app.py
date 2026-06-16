@@ -6,8 +6,8 @@ from datetime import time
 
 st.set_page_config(page_title="Video Copyright Remover", page_icon="🎬", layout="centered")
 
-st.title("🎬 Smart Video Copyright Remover")
-st.write("ভিডিও আপলোড করুন এবং মোবাইলের মতো স্লাইডার টেনে মিনিট-সেকেন্ড দেখে কেটে নিন।")
+st.title("🎬 Smart Video Copyright Remover (Video Player Style)")
+st.write("ভিডিও আপলোড করুন এবং প্লেয়ারের ঠিক নিচে মোবাইলের মতো টাইমলাইন টেনে কেটে নিন।")
 
 uploaded_file = st.file_uploader("১. গ্যালারি থেকে মূল ভিডিও সিলেক্ট করুন (MP4)", type=["mp4"])
 
@@ -23,35 +23,32 @@ if uploaded_file is not None:
     st.markdown("---")
     
     # --- ভিডিও প্লেয়ার ---
-    st.markdown("### 📺 ভিডিও প্রিভিউ:")
+    st.markdown("### 📺 ভিডিও প্রিভিউ ও টাইমলাইন সিলেক্টর:")
     with open(input_path, "rb") as video_file:
         video_bytes = video_file.read()
     st.video(video_bytes)
     
-    # --- মোবাইল স্টাইল সিঙ্গেল স্লাইডার (মিনিট ও সেকেন্ড সহ) ---
-    st.markdown("### ⏳ ভিডিও কাটার টাইমলাইন সিলেক্ট করুন:")
-    st.info("💡 নিচের স্লাইডারের বামের বাটনটি টেনে শুরুর সময় এবং ডানের বাটনটি টেনে শেষের সময় সেট করুন।")
-    
-    # স্লাইডারে সরাসরি মিনিট ও সেকেন্ড ফরম্যাট করার জন্য datetime.time ব্যবহার করা হয়েছে
-    # ডিফল্টভাবে ০ মিনিট ০ সেকেন্ড থেকে ৫ মিনিট ০ সেকেন্ড পর্যন্ত রেঞ্জ রাখা হয়েছে
+    # --- মোবাইল স্টাইল ট্রিম বার ---
+    # এটি হুবহু প্লেয়ারের টাইমিংয়ের সাথে ম্যাচ করে মিনিট:সেকেন্ড দেখাবে
     time_range = st.slider(
-        "ভিдиоর শুরুর এবং শেষের সময় (মিনিট:সেকেন্ড):",
+        "🎞️ ভিডিওর কাটিং পয়েন্ট সিলেক্ট করুন (টেনে ছোট-বড় করুন):",
         min_value=time(0, 0, 0),
-        max_value=time(0, 10, 0), # সর্বোচ্চ ১০ মিনিট পর্যন্ত ভিডিও সাপোর্ট করবে
-        value=(time(0, 0, 0), time(0, 0, 30)), # ডিফল্ট রেঞ্জ ৩০ সেকেন্ড সেট করা
-        format="mm:ss" # স্ক্রিনে সরাসরি মিনিট ও সেকেন্ড (MM:SS) দেখাবে
+        max_value=time(0, 15, 0), # সর্বোচ্চ ১৫ মিনিটের ভিডিও রেঞ্জ
+        value=(time(0, 0, 0), time(0, 0, 26)), # ভিডিওর শুরুর স্ট্যান্ডার্ড ডিফল্ট
+        format="mm:ss",
+        help="বাম পাশের বাটন টেনে শুরুর মিনিট-সেকেন্ড এবং ডান পাশের বাটন টেনে শেষের মিনিট-সেকেন্ড সেট করুন।"
     )
     
     start_time = time_range[0]
     end_time = time_range[1]
     
-    # ব্যাকগ্রাউন্ড প্রসেসের জন্য সেকেন্ড হিসাব করা
+    # ব্যাকগ্রাউন্ডের জন্য সেকেন্ড কনভার্সন
     total_start_seconds = start_time.minute * 60 + start_time.second
     total_end_seconds = end_time.minute * 60 + end_time.second
     
-    # স্ক্রিনে সুন্দর করে মিনিট ও সেকেন্ড লিখে দেখানো
-    st.markdown("🎯 **আপনার সিলেক্ট করা সময়:**")
-    st.warning(f"🎬 ভিডিওটি **{start_time.minute} মিনিট {start_time.second} সেকেন্ড** থেকে শুরু করে **{end_time.minute} মিনিট {end_time.second} সেকেন্ড** পর্যন্ত কেটে নেওয়া হবে।")
+    # ইউজার ইন্টারফেস সুন্দর করা
+    st.markdown("### 🎯 আপনার সিলেক্ট করা সময়:")
+    st.info(f"🎬 ভিডিওটি **{start_time.minute:02d}:{start_time.second:02d}** থেকে শুরু হয়ে **{end_time.minute:02d}:{end_time.second:02d}** মিনিট পর্যন্ত কাটা হবে।")
     st.markdown("---")
     
     # --- ওয়াটারমার্ক সিস্টেম ---
@@ -102,16 +99,20 @@ if uploaded_file is not None:
         elif total_start_seconds >= total_end_seconds:
             st.error("❌ ভুল সিলেকশন! ভিডিওর শেষের সময় অবশ্যই শুরুর সময়ের চেয়ে বেশি হতে হবে।")
         else:
-            with st.spinner("ভিডিও প্রসেসিং এবং কাটিংয়ের কাজ চলছে... একটু অপেক্ষা করুন"):
+            with st.spinner("ভিডিও প্রসেস ও কপিরাইট রিমুভের কাজ ব্যাকগ্রাউন্ডে চলছে..."):
                 try:
                     if os.path.exists(output_path):
                         os.remove(output_path)
                     
                     ffmpeg_exe = im_ffmpeg.get_ffmpeg_exe()
-                    command = [ffmpeg_exe, '-y']
                     
-                    # সুনির্দিষ্ট ও নিখুঁত ট্রিম এফেক্ট
-                    command += ['-ss', str(total_start_seconds), '-to', str(total_end_seconds), '-i', input_path]
+                    # হাই-স্পিড ট্রিম ও ফিল্টার কমান্ড
+                    command = [
+                        ffmpeg_exe, '-y',
+                        '-ss', str(total_start_seconds),
+                        '-to', str(total_end_seconds),
+                        '-i', input_path
+                    ]
                     
                     if watermark_type == "লোগোর ছবি আপলোড করে (Image/Logo Watermark)":
                         command += [
